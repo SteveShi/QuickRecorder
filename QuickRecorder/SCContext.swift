@@ -462,6 +462,7 @@ class SCContext {
             if let vW = vW {
                 if vW.status != .completed {
                     streamType = nil
+                    PopoverState.shared.isRecording = false
                     return
                 }
             }
@@ -477,6 +478,7 @@ class SCContext {
         }
         
         streamType = nil
+        PopoverState.shared.isRecording = false
         firstFrame = nil
     }
     

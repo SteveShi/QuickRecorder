@@ -53,8 +53,8 @@ targets:
       base:
         PRODUCT_NAME: "$(TARGET_NAME)"
         PRODUCT_BUNDLE_IDENTIFIER: com.lihaoyun6.QuickRecorder
-        MARKETING_VERSION: "1.6.9"
-        CURRENT_PROJECT_VERSION: 169
+        MARKETING_VERSION: "1.7.0"
+        CURRENT_PROJECT_VERSION: 170
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: QuickRecorder/QuickRecorder.entitlements
         INFOPLIST_FILE: QuickRecorder/Info.plist

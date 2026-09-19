@@ -15,6 +15,7 @@ import KeyboardShortcuts
 import ServiceManagement
 import CoreMediaIO
 import Sparkle
+import Combine
 @MainActor var scPerm = false
 nonisolated(unsafe) let fd = FileManager.default
 nonisolated(unsafe) let ud = UserDefaults.standard
@@ -35,7 +36,7 @@ nonisolated(unsafe) let ud = UserDefaults.standard
 struct QuickRecorderApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @AppStorage("showMenubar") private var showMenubar: Bool = false
-    @State private var isRecording: Bool = (SCContext.streamType != nil)
+    @ObservedObject private var popoverState = PopoverState.shared
         
     init() {
         updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
@@ -58,16 +59,10 @@ struct QuickRecorderApp: App {
         }
         
         MenuBarExtra(isInserted: Binding(
-            get: { showMenubar || isRecording },
+            get: { showMenubar || popoverState.isRecording },
             set: { showMenubar = $0 }
         )) {
             MenuBarContentView()
-                .onReceive(updateTimer) { _ in
-                    let recording = (SCContext.streamType != nil)
-                    if isRecording != recording {
-                        isRecording = recording
-                    }
-                }
         } label: {
             MenuBarLabel()
         }
@@ -110,6 +105,7 @@ extension Scene {
 class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency SCStreamDelegate, @preconcurrency SCStreamOutput, @preconcurrency AVCaptureVideoDataOutputSampleBufferDelegate {
     static let shared = AppDelegate()
     var filter: SCContentFilter?
+    private var cancellables = Set<AnyCancellable>()
     nonisolated(unsafe) var isCameraReady = false
     nonisolated(unsafe) var isPresenterON = false
     nonisolated(unsafe) var isResizing = false
@@ -252,6 +248,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency SCStreamDele
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error = error { print("Notification authorization denied: \(error.localizedDescription)") }
         }
+        
+        updateTimer.sink { _ in
+            let recording = (SCContext.streamType != nil)
+            if PopoverState.shared.isRecording != recording {
+                PopoverState.shared.isRecording = recording
+            }
+        }.store(in: &cancellables)
 
         mousePointer.title = "Mouse Pointer".local
         mousePointer.level = .screenSaver

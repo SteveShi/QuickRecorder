@@ -299,6 +299,9 @@ extension AppDelegate {
                 if recordMic { startMicRecording() }
             }
             try await SCContext.stream.startCapture()
+            await MainActor.run {
+                PopoverState.shared.isRecording = true
+            }
         } catch {
             assertionFailure("capture failed".local)
             return

@@ -12,6 +12,7 @@ class PopoverState: ObservableObject {
     static let shared = PopoverState()
     @Published var isShowing: Bool = false
     @Published var isPaused: Bool = false
+    @Published var isRecording: Bool = false
 }
 
 struct MenuBarLabel: View {
@@ -19,23 +20,44 @@ struct MenuBarLabel: View {
     @ObservedObject private var popoverState = PopoverState.shared
     
     var body: some View {
-        if SCContext.streamType != nil {
-            HStack(spacing: 4) {
-                Image(systemName: popoverState.isPaused ? "pause.circle.fill" : "record.circle.fill")
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(popoverState.isPaused ? .yellow : .red, .primary)
-                Text(recordingLength)
-                    .font(.system(.body, design: .monospaced))
+        Group {
+            if popoverState.isRecording {
+                HStack(alignment: .center, spacing: 5) {
+                    Image(systemName: popoverState.isPaused ? "pause.circle.fill" : "record.circle.fill")
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(popoverState.isPaused ? Color.yellow : Color.red, Color.white)
+                        .font(.system(size: 11, weight: .bold))
+                    
+                    Text(recordingLength)
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2.5)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.mypurple.opacity(0.85))
+                        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                )
+                .fixedSize()
+            } else {
+                Image(systemName: "dot.circle.and.hand.point.up.left.fill")
+                    .lineLimit(1)
             }
-            .onReceive(updateTimer) { t in
+        }
+        .onReceive(updateTimer) { t in
+            let recording = (SCContext.streamType != nil)
+            if popoverState.isRecording != recording {
+                popoverState.isRecording = recording
+            }
+            if recording {
                 recordingLength = SCContext.getRecordingLength()
                 let timePassed = Date.now.timeIntervalSince(SCContext.startTime ?? t)
                 if SCContext.autoStop != 0 && timePassed / 60 >= CGFloat(SCContext.autoStop) {
                     SCContext.stopRecording()
                 }
             }
-        } else {
-            Image(systemName: "dot.circle.and.hand.point.up.left.fill")
         }
     }
 }
