@@ -20,30 +20,12 @@ struct MenuBarLabel: View {
     @ObservedObject private var popoverState = PopoverState.shared
     
     var body: some View {
-        Group {
+        HStack(spacing: 4) {
             if popoverState.isRecording {
-                HStack(alignment: .center, spacing: 5) {
-                    Image(systemName: popoverState.isPaused ? "pause.circle.fill" : "record.circle.fill")
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(popoverState.isPaused ? Color.yellow : Color.red, Color.white)
-                        .font(.system(size: 11, weight: .bold))
-                    
-                    Text(recordingLength)
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2.5)
-                .background(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.mypurple.opacity(0.85))
-                        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-                )
-                .fixedSize()
+                Image(systemName: popoverState.isPaused ? "pause.circle.fill" : "record.circle")
+                Text(recordingLength)
             } else {
                 Image(systemName: "dot.circle.and.hand.point.up.left.fill")
-                    .lineLimit(1)
             }
         }
         .onReceive(updateTimer) { t in
@@ -62,110 +44,88 @@ struct MenuBarLabel: View {
     }
 }
 
-struct MenuBarContentView: View {
-    @ObservedObject private var popoverState = PopoverState.shared
-    
-    var body: some View {
-        if SCContext.streamType != nil {
-            RecordingControlsView()
-        } else {
-            ContentViewNew()
-                .onAppear {
-                    closeAllWindow()
-                }
-        }
-    }
-}
-
-struct RecordingControlsView: View {
+struct MenuBarMenuView: View {
     @ObservedObject private var popoverState = PopoverState.shared
     @State private var recordingLength = "00:00"
-    @State private var isCameraPopoverShowing = false
-    @State private var deviceWindowIsShowing = true
     
     var body: some View {
-        VStack(spacing: 14) {
-            HStack {
-                Circle()
-                    .fill(popoverState.isPaused ? Color.yellow : Color.red)
-                    .frame(width: 10, height: 10)
-                Text(popoverState.isPaused ? "Paused".local : "Recording".local)
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(recordingLength)
-                    .font(.system(size: 20, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.primary)
-            }
-            .padding(.horizontal, 4)
+        if popoverState.isRecording || SCContext.streamType != nil {
+            Text("Recording: ".local + recordingLength)
             
             Divider()
             
-            HStack(spacing: 12) {
-                // 停止录制
-                Button(action: {
-                    if SCContext.streamType == .idevice {
-                        AVOutputClass.shared.stopRecording()
-                    } else {
-                        SCContext.stopRecording()
-                    }
-                }) {
-                    Label("Stop".local, systemImage: "stop.circle.fill")
-                        .foregroundStyle(.red)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.red.opacity(0.15))
-                
-                // 暂停/继续
-                if SCContext.streamType != .idevice {
-                    Button(action: {
-                        SCContext.pauseRecording()
-                    }) {
-                        Label(
-                            popoverState.isPaused ? "Resume".local : "Pause".local,
-                            systemImage: popoverState.isPaused ? "play.circle.fill" : "pause.circle.fill"
-                        )
-                    }
-                    .buttonStyle(.bordered)
-                }
-                
-                // 摄像头控制
-                if SCContext.streamType != .systemaudio && SCContext.streamType != .idevice && SCContext.streamType != .window {
-                    Button(action: {
-                        isCameraPopoverShowing.toggle()
-                    }) {
-                        Label("Camera".local, systemImage: "camera.circle.fill")
-                    }
-                    .buttonStyle(.bordered)
-                    .popover(isPresented: $isCameraPopoverShowing, arrowEdge: .bottom) {
-                        CameraPopoverView(closePopover: {
-                            isCameraPopoverShowing = false
-                        })
-                    }
-                }
-                
-                // 移动设备镜像窗口切换
+            Button("Stop Recording".local) {
                 if SCContext.streamType == .idevice {
-                    Button(action: {
-                        DispatchQueue.main.async {
-                            if deviceWindow.isVisible {
-                                deviceWindow.close()
-                            } else {
-                                deviceWindow.orderFront(nil)
-                            }
-                            deviceWindowIsShowing = deviceWindow.isVisible
-                        }
-                    }) {
-                        Label("Preview".local, systemImage: deviceWindowIsShowing ? "eye.circle.fill" : "eye.slash.circle.fill")
-                    }
-                    .buttonStyle(.bordered)
+                    AVOutputClass.shared.stopRecording()
+                } else {
+                    SCContext.stopRecording()
                 }
             }
+            .keyboardShortcut("s", modifiers: [.command, .option])
+            
+            if SCContext.streamType != .idevice {
+                Button(popoverState.isPaused ? "Resume".local : "Pause".local) {
+                    SCContext.pauseRecording()
+                }
+                .keyboardShortcut("p", modifiers: [.command, .option])
+            }
+            
+            Divider()
+        } else {
+            Button("Start".local) {
+                closeAllWindow()
+                AppDelegate.shared.createNewWindow(view: ScreenSelector(), title: "Screen Selector".local)
+            }
+            
+            Button("Screen Area".local) {
+                closeAllWindow()
+                AppDelegate.shared.showAreaSelector(size: NSSize(width: 600, height: 450))
+            }
+            
+            Button("Window".local) {
+                closeAllWindow()
+                AppDelegate.shared.createNewWindow(view: WinSelector(), title: "Window Selector".local)
+            }
+            
+            Button("Application".local) {
+                closeAllWindow()
+                AppDelegate.shared.createNewWindow(view: AppSelector(), title: "App Selector".local)
+            }
+            
+            Button("System Audio".local) {
+                if let display = SCContext.getSCDisplayWithMouse() {
+                    closeAllWindow()
+                    AppDelegate.shared.createCountdownPanel(screen: display) {
+                        AppDelegate.shared.prepRecord(type: "audio", screens: SCContext.getSCDisplayWithMouse(), windows: nil, applications: nil)
+                    }
+                }
+            }
+            
+            Divider()
+            
+            Button("Open Main Panel".local) {
+                _ = AppDelegate.shared.applicationShouldHandleReopen(NSApp, hasVisibleWindows: true)
+                NSApp.activate()
+            }
+            
+            Divider()
         }
-        .padding(16)
-        .frame(minWidth: 280)
-        .onReceive(updateTimer) { _ in
-            recordingLength = SCContext.getRecordingLength()
+        
+        Button("Preferences…".local) {
+            AppDelegate.shared.openSettingPanel()
         }
+        .keyboardShortcut(",", modifiers: .command)
+        
+        Button("Check for Updates…".local) {
+            updaterController.checkForUpdates(nil)
+        }
+        
+        Divider()
+        
+        Button("Quit QuickRecorder".local) {
+            NSApp.terminate(nil)
+        }
+        .keyboardShortcut("q", modifiers: .command)
     }
 }
+

@@ -62,11 +62,11 @@ struct QuickRecorderApp: App {
             get: { showMenubar || popoverState.isRecording },
             set: { showMenubar = $0 }
         )) {
-            MenuBarContentView()
+            MenuBarMenuView()
         } label: {
             MenuBarLabel()
         }
-        .menuBarExtraStyle(.window)
+        .menuBarExtraStyle(.menu)
         
         Settings {
             SettingsView()
@@ -344,9 +344,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, @preconcurrency SCStreamDele
             if (!w1.isEmpty && w2.isEmpty) || w1.isEmpty {
                 let offset = (!showOnDock && !showMenubar) ? 127 : 0
                 let width = 928
-                let mainPanel = EscPanel(contentRect: NSRect(x: 0, y: 0, width: width + offset, height: 100), styleMask: [.fullSizeContentView, .nonactivatingPanel], backing: .buffered, defer: false)
-                mainPanel.contentView = NSHostingView(rootView: ContentViewNew())
+                let mainPanel = EscPanel(contentRect: NSRect(x: 0, y: 0, width: width + offset, height: 100), styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel], backing: .buffered, defer: false)
+                mainPanel.contentView = NSHostingView(rootView: ContentView())
                 mainPanel.title = "QuickRecorder".local
+                mainPanel.titleVisibility = .hidden
+                mainPanel.titlebarAppearsTransparent = true
                 mainPanel.isOpaque = false
                 mainPanel.level = .floating
                 mainPanel.isRestorable = false
