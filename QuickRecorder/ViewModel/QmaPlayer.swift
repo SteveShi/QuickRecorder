@@ -389,6 +389,7 @@ extension qmaPackageHandle {
     }
 }
 
+@MainActor
 class AudioPlayerManager: ObservableObject {
     @Published var progress: Double = 0.0
     @Published var isPlaying: Bool = false

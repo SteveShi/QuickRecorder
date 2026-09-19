@@ -142,6 +142,7 @@ struct HighlightMask: View {
     }
 }
 
+@MainActor
 class WindowHighlighter {
     static let shared = WindowHighlighter()
     var mouseMonitor: Any?
@@ -286,27 +287,6 @@ class WindowHighlighter {
         )
         return bounds
     }
-    
-    func CGRectTransform(cgRect: CGRect) -> NSRect {
-        let x = cgRect.origin.x
-        let y = cgRect.origin.y
-        let w = cgRect.width
-        let h = cgRect.height
-        if let main = NSScreen.screens.first(where: { $0.isMainScreen }) {
-            return NSRect(x: x, y: main.frame.height - y - h, width: w, height: h)
-        }
-        return cgRect
-    }
-}
-
-class EscPanel: NSPanel {
-    override func cancelOperation(_ sender: Any?) {
-        self.close()
-        WindowHighlighter.shared.stopMouseMonitor()
-    }
-    override var canBecomeKey: Bool {
-        return true
-    }
 }
 
 func CGRectTransform(cgRect: CGRect) -> NSRect {
@@ -318,6 +298,16 @@ func CGRectTransform(cgRect: CGRect) -> NSRect {
         return NSRect(x: x, y: main.frame.height - y - h, width: w, height: h)
     }
     return cgRect
+}
+
+class EscPanel: NSPanel {
+    override func cancelOperation(_ sender: Any?) {
+        self.close()
+        WindowHighlighter.shared.stopMouseMonitor()
+    }
+    override var canBecomeKey: Bool {
+        return true
+    }
 }
 
 extension View {

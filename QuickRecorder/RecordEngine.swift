@@ -43,46 +43,52 @@ extension AppDelegate {
         }
         
         // file preparation
+        guard let availableContent = SCContext.availableContent else {
+            SCContext.streamType = nil
+            _ = createAlert(title: "Failed to Record".local, message: "Screen capture content unavailable.".local, button1: "OK").runModal()
+            return
+        }
+        
         if let screens = screens {
-            SCContext.screen = SCContext.availableContent!.displays.first(where: { $0 == screens })
+            SCContext.screen = availableContent.displays.first(where: { $0 == screens })
         } else { SCContext.streamType = nil; return }
         
         if let windows = windows {
-            SCContext.window = SCContext.availableContent!.windows.filter({ windows.contains($0) })
+            SCContext.window = availableContent.windows.filter({ windows.contains($0) })
         } else { if SCContext.streamType == .window { SCContext.streamType = nil; return } }
         
         if let applications = applications {
-            SCContext.application = SCContext.availableContent!.applications.filter({ applications.contains($0) })
+            SCContext.application = availableContent.applications.filter({ applications.contains($0) })
         } else { if SCContext.streamType == .application { SCContext.streamType = nil; return } }
         
         let screen = SCContext.screen ?? SCContext.getSCDisplayWithMouse()!
         let qrSelf = SCContext.getSelf()
         let qrWindows = SCContext.getSelfWindows()
-        let dockApp = SCContext.availableContent!.applications.first(where: { $0.bundleIdentifier.description == "com.apple.dock" })
-        let wallpaper = SCContext.availableContent!.windows.filter({
+        let dockApp = availableContent.applications.first(where: { $0.bundleIdentifier.description == "com.apple.dock" })
+        let wallpaper = availableContent.windows.filter({
             guard let title = $0.title else { return false }
             return $0.owningApplication?.bundleIdentifier == "com.apple.dock" && title != "LPSpringboard" && title != "Dock"
         })
-        let desktop = SCContext.availableContent!.windows.filter({
+        let desktop = availableContent.windows.filter({
             guard let title = $0.title else { return false }
             return $0.owningApplication?.bundleIdentifier == "" && title == "Desktop"
         })
-        let dockWindow = SCContext.availableContent!.windows.filter({
+        let dockWindow = availableContent.windows.filter({
             guard let title = $0.title else { return true }
             return $0.owningApplication?.bundleIdentifier == "com.apple.dock" && title == "Dock"
         })
-        let desktopFiles = SCContext.availableContent!.windows.filter({
+        let desktopFiles = availableContent.windows.filter({
             $0.owningApplication?.bundleIdentifier == "com.apple.finder"
             && $0.title == "" && $0.frame == screen.frame })
-        let controlCenterWindow = SCContext.availableContent!.applications.filter({ $0.bundleIdentifier == "com.apple.controlcenter" })
-        let mouseWindow = SCContext.availableContent!.windows.filter({ $0.title == "Mouse Pointer".local && $0.owningApplication?.bundleIdentifier == Bundle.main.bundleIdentifier })
-        let camLayer = SCContext.availableContent!.windows.filter({ $0.title == "Camera Overlayer".local && $0.owningApplication?.bundleIdentifier == Bundle.main.bundleIdentifier })
+        let controlCenterWindow = availableContent.applications.filter({ $0.bundleIdentifier == "com.apple.controlcenter" })
+        let mouseWindow = availableContent.windows.filter({ $0.title == "Mouse Pointer".local && $0.owningApplication?.bundleIdentifier == Bundle.main.bundleIdentifier })
+        let camLayer = availableContent.windows.filter({ $0.title == "Camera Overlayer".local && $0.owningApplication?.bundleIdentifier == Bundle.main.bundleIdentifier })
         var appBlackList = [String]()
         if let savedData = ud.data(forKey: "hiddenApps"),
            let decodedApps = try? JSONDecoder().decode([AppInfo].self, from: savedData) {
             appBlackList = (decodedApps as [AppInfo]).map({ $0.bundleID })
         }
-        let excliudedApps = SCContext.availableContent!.applications.filter({ appBlackList.contains($0.bundleIdentifier) })
+        let excliudedApps = availableContent.applications.filter({ appBlackList.contains($0.bundleIdentifier) })
         
         if SCContext.streamType == .window || SCContext.streamType == .windows {
             if var includ = SCContext.window {
@@ -298,7 +304,6 @@ extension AppDelegate {
             return
         }
         if !audioOnly { registerGlobalMouseMonitor() }
-        DispatchQueue.main.async { updateStatusBar() }
         if preventSleep { SleepPreventer.shared.preventSleep(reason: "Screen recording in progress") }
     }
 
@@ -467,32 +472,35 @@ extension AppDelegate {
         }
     }
     
-    func outputVideoEffectDidStart(for stream: SCStream) {
-        DispatchQueue.main.async { camWindow.close() }
-        print("[Presenter Overlay ON]")
-        isPresenterON = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + TimeInterval(poSafeDelay)) {
-            self.isCameraReady = true
+    nonisolated func outputVideoEffectDidStart(for stream: SCStream) {
+        Task { @MainActor in
+            camWindow.close()
+            print("[Presenter Overlay ON]")
+            AppDelegate.shared.isPresenterON = true
+            let delay = AppDelegate.shared.poSafeDelay
+            try? await Task.sleep(nanoseconds: UInt64(Double(delay) * 1_000_000_000))
+            AppDelegate.shared.isCameraReady = true
         }
     }
     
-    func outputVideoEffectDidStop(for stream: SCStream) {
-        print("[Presenter Overlay OFF]")
-        presenterType = "OFF"
-        isPresenterON = false
-        isCameraReady = false
-        DispatchQueue.main.async {
-            if SCContext.stream != nil { camWindow.orderFront(self) }
+    nonisolated func outputVideoEffectDidStop(for stream: SCStream) {
+        Task { @MainActor in
+            print("[Presenter Overlay OFF]")
+            AppDelegate.shared.presenterType = "OFF"
+            AppDelegate.shared.isPresenterON = false
+            AppDelegate.shared.isCameraReady = false
+            if SCContext.stream != nil { camWindow.orderFront(nil) }
         }
     }
     
-    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {
+    nonisolated func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of outputType: SCStreamOutputType) {
         if SCContext.saveFrame, let imageBuffer = sampleBuffer.imageBuffer {
             SCContext.saveFrame = false
             
             var ciImage = CIImage(cvPixelBuffer: imageBuffer)
             let url = "\(SCContext.getFilePath(capture: true)).png".url
-            if !recordHDR {
+            let isHDR = UserDefaults.standard.bool(forKey: "recordHDR")
+            if !isHDR {
                 sampleBuffer.nsImage?.saveToFile(url)
             } else {
                 let context = CIContext()
@@ -586,8 +594,10 @@ extension AppDelegate {
                         if type != presenterType {
                             print("Presenter Overlay set to \"\(type)\"!")
                             isCameraReady = false
-                            DispatchQueue.main.asyncAfter(deadline: .now() + TimeInterval(poSafeDelay)) {
-                                self.isCameraReady = true
+                            let delay = UserDefaults.standard.integer(forKey: "poSafeDelay")
+                            let safeDelay = delay > 0 ? delay : 1
+                            DispatchQueue.main.asyncAfter(deadline: .now() + TimeInterval(safeDelay)) {
+                                AppDelegate.shared.isCameraReady = true
                             }
                             presenterType = type
                         }
@@ -600,7 +610,7 @@ extension AppDelegate {
             break
         case .audio:
             if SCContext.streamType == .systemaudio { // write directly to file if not video recording
-                hideMousePointer = true
+                Task { @MainActor in hideMousePointer = true }
                 if SCContext.vW != nil && SCContext.vW?.status == .writing, SCContext.startTime == nil {
                     SCContext.vW.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(SampleBuffer))
                 }
@@ -621,16 +631,17 @@ extension AppDelegate {
         }
     }
 
-    func stream(_ stream: SCStream, didStopWithError error: Error) { // stream error
+    nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) { // stream error
         print("closing stream with error:\n".local, error,
               "\nthis might be due to the window closing or the user stopping from the sonoma ui".local)
-        DispatchQueue.main.async {
+        Task { @MainActor in
             SCContext.stream = nil
             SCContext.stopRecording()
         }
     }
 }
 
+@MainActor
 class AudioRecorder: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
     static let shared = AudioRecorder()
     private var captureSession: AVCaptureSession!
@@ -688,7 +699,7 @@ class AudioRecorder: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
         }
     }
 
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+    nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if SCContext.isPaused || SCContext.startTime == nil { return }
         if SCContext.micInput.isReadyForMoreMediaData {
             SCContext.micInput.append(sampleBuffer)

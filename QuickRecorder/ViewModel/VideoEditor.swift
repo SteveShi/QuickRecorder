@@ -3,6 +3,7 @@ import UserNotifications
 import SwiftUI
 import AVKit
 
+@MainActor
 class RecorderPlayerModel: NSObject, ObservableObject {
     @Published var playerView: AVPlayerView
     var asset: AVAsset?

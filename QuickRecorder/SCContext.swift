@@ -8,65 +8,69 @@
 import AVFAudio
 import AVFoundation
 import Foundation
-import ScreenCaptureKit
+@preconcurrency import ScreenCaptureKit
 import UserNotifications
 import SwiftLAME
 import SwiftUI
 import AECAudioStream
 
 class SCContext {
-    static var trimingList = [URL]()
-    static var firstFrame: CMSampleBuffer?
-    static var autoStop = 0
-    static var recordCam = ""
-    static var recordDevice = ""
-    static var captureSession: AVCaptureSession!
-    static var previewSession: AVCaptureSession!
-    static var frameCache: CMSampleBuffer?
-    static var filter: SCContentFilter?
-    static var isMagnifierEnabled = false
-    static var saveFrame = false
-    static var isPaused = false
-    static var isResume = false
-    static var isSkipFrame = false
-    static var lastPTS: CMTime?
-    static var timeOffset = CMTimeMake(value: 0, timescale: 0)
-    static var screenArea: NSRect?
+    nonisolated(unsafe) static var trimingList = [URL]()
+    nonisolated(unsafe) static var firstFrame: CMSampleBuffer?
+    nonisolated(unsafe) static var autoStop = 0
+    nonisolated(unsafe) static var recordCam = ""
+    nonisolated(unsafe) static var recordDevice = ""
+    nonisolated(unsafe) static var captureSession: AVCaptureSession!
+    nonisolated(unsafe) static var previewSession: AVCaptureSession!
+    nonisolated(unsafe) static var frameCache: CMSampleBuffer?
+    nonisolated(unsafe) static var filter: SCContentFilter?
+    nonisolated(unsafe) static var isMagnifierEnabled = false
+    nonisolated(unsafe) static var saveFrame = false
+    nonisolated(unsafe) static var isPaused = false
+    nonisolated(unsafe) static var isResume = false
+    nonisolated(unsafe) static var isSkipFrame = false
+    nonisolated(unsafe) static var lastPTS: CMTime?
+    nonisolated(unsafe) static var timeOffset = CMTimeMake(value: 0, timescale: 0)
+    nonisolated(unsafe) static var screenArea: NSRect?
     static let audioEngine = AVAudioEngine()
-    static let AECEngine = AECAudioStream(sampleRate: 48000)
-    static var backgroundColor: CGColor = CGColor.black
-    static var filePath: String!
-    static var filePath1: String!
-    static var filePath2: String!
-    static var audioFile: AVAudioFile?
-    static var audioFile2: AVAudioFile?
-    static var vW: AVAssetWriter!
-    static var vwInput, awInput, micInput: AVAssetWriterInput!
-    static var startTime: Date?
-    static var timePassed: TimeInterval = 0
-    static var stream: SCStream!
-    static var screen: SCDisplay?
-    static var window: [SCWindow]?
-    static var application: [SCRunningApplication]?
-    static var streamType: StreamType?
-    static var availableContent: SCShareableContent?
+    nonisolated(unsafe) static let AECEngine = AECAudioStream(sampleRate: 48000)
+    nonisolated(unsafe) static var backgroundColor: CGColor = CGColor.black
+    nonisolated(unsafe) static var filePath: String!
+    nonisolated(unsafe) static var filePath1: String!
+    nonisolated(unsafe) static var filePath2: String!
+    nonisolated(unsafe) static var audioFile: AVAudioFile?
+    nonisolated(unsafe) static var audioFile2: AVAudioFile?
+    nonisolated(unsafe) static var vW: AVAssetWriter!
+    nonisolated(unsafe) static var vwInput, awInput, micInput: AVAssetWriterInput!
+    nonisolated(unsafe) static var startTime: Date?
+    nonisolated(unsafe) static var timePassed: TimeInterval = 0
+    nonisolated(unsafe) static var stream: SCStream!
+    nonisolated(unsafe) static var screen: SCDisplay?
+    nonisolated(unsafe) static var window: [SCWindow]?
+    nonisolated(unsafe) static var application: [SCRunningApplication]?
+    nonisolated(unsafe) static var streamType: StreamType?
+    nonisolated(unsafe) static var availableContent: SCShareableContent?
     static let excludedApps = ["", "com.apple.dock", "com.apple.screencaptureui", "com.apple.controlcenter", "com.apple.notificationcenterui", "com.apple.systemuiserver", "com.apple.WindowManager", "dev.mnpn.Azayaka", "com.gaosun.eul", "com.pointum.hazeover", "net.matthewpalmer.Vanilla", "com.dwarvesv.minimalbar", "com.bjango.istatmenus.status"]
     
+    private final class ResultBox: @unchecked Sendable {
+        var value: SCShareableContent?
+    }
+
     static func updateAvailableContentSync() -> SCShareableContent? {
         let semaphore = DispatchSemaphore(value: 0)
-        var result: SCShareableContent? = nil
+        let box = ResultBox()
 
         updateAvailableContent { content in
-            result = content
+            box.value = content
             semaphore.signal()
         }
 
         semaphore.wait()
-        return result
+        return box.value
     }
     
-    private static func updateAvailableContent(completion: @escaping (SCShareableContent?) -> Void) {
-        SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { [self] content, error in
+    private static func updateAvailableContent(completion: @escaping @Sendable (SCShareableContent?) -> Void) {
+        SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, error in
             if let error = error {
                 switch error {
                 case SCStreamError.userDeclined:
@@ -90,7 +94,7 @@ class SCContext {
         }
     }
     
-    static func updateAvailableContent(completion: @escaping () -> Void) {
+    static func updateAvailableContent(completion: @escaping @Sendable () -> Void) {
         SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: false) { content, error in
             if let error = error {
                 switch error {
@@ -317,6 +321,7 @@ class SCContext {
         return (preview || capture)
     }
     
+    @MainActor
     static func pauseRecording() {
         isPaused.toggle()
         PopoverState.shared.isPaused = isPaused
@@ -326,6 +331,7 @@ class SCContext {
         }
     }
     
+    @MainActor
     static func stopRecording() {
         if ud.bool(forKey: "preventSleep") { SleepPreventer.shared.allowSleep() }
         autoStop = 0
@@ -389,7 +395,6 @@ class SCContext {
         }
         
         DispatchQueue.main.async {
-            controlPanel.close()
             if isCameraRunning() {
                 if camWindow.isVisible { camWindow.close() }
                 if deviceWindow.isVisible { deviceWindow.close() }
@@ -452,7 +457,6 @@ class SCContext {
         screen = nil
         startTime = nil
         AppDelegate.shared.presenterType = "OFF"
-        updateStatusBar()
         
         if !(ud.bool(forKey: "recordMic") && ud.bool(forKey: "recordWinSound") && ud.bool(forKey: "remuxAudio")) && streamType != .systemaudio {
             if let vW = vW {
@@ -476,6 +480,7 @@ class SCContext {
         firstFrame = nil
     }
     
+    @MainActor
     static func showPreview(path: String, image: NSImage? = nil) {
         if !ud.bool(forKey: "showPreview") { return }
         var previewImage: NSImage?
@@ -506,6 +511,7 @@ class SCContext {
         try await lameEncoder.encode(priority: .userInitiated)
     }
     
+    @MainActor
     static func trimVideo() {
         if ud.bool(forKey: "trimAfterRecord") {
             let fileURL = filePath.url
@@ -514,7 +520,7 @@ class SCContext {
     }
     
     static func getCameras() -> [AVCaptureDevice] {
-        let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .externalUnknown], mediaType: .video, position: .unspecified)
+        let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .external], mediaType: .video, position: .unspecified)
         return discoverySession.devices
     }
     
@@ -523,13 +529,13 @@ class SCContext {
         if #available(macOS 15.0, *) {
             discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInMicrophone, .microphone], mediaType: .audio, position: .unspecified)
         } else {
-            discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInMicrophone, .externalUnknown], mediaType: .audio, position: .unspecified)
+            discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInMicrophone, .external], mediaType: .audio, position: .unspecified)
         }
         return discoverySession.devices.filter({ !$0.localizedName.contains("CADefaultDeviceAggregate") })
     }
     
     static func getiDevice() -> [AVCaptureDevice] {
-        let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.externalUnknown], mediaType: .muxed, position: .unspecified)
+        let discoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.external], mediaType: .muxed, position: .unspecified)
         return discoverySession.devices
     }
     

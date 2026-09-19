@@ -12,13 +12,16 @@ import ScreenCaptureKit
 class selectScreen: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         if SCContext.stream != nil {
-            createAlert(title: "Error".local, message: "Already recording!".local, button1: "OK".local).runModal()
+            Task { @MainActor in
+                createAlert(title: "Error".local, message: "Already recording!".local, button1: "OK".local).runModal()
+            }
             return nil
         }
+        let requestedIndex = evaluatedArguments?["index"] as? Int
         SCContext.updateAvailableContent {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 closeAllWindow()
-                if var index = self.evaluatedArguments!["index"] as? Int {
+                if var index = requestedIndex {
                     guard let screens = SCContext.availableContent?.displays else { return }
                     index -= 1
                     closeAllWindow()
@@ -44,22 +47,22 @@ class selectScreen: NSScriptCommand {
 class selectArea: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         if SCContext.stream != nil {
-            createAlert(title: "Error".local, message: "Already recording!".local, button1: "OK".local).runModal()
+            Task { @MainActor in
+                createAlert(title: "Error".local, message: "Already recording!".local, button1: "OK".local).runModal()
+            }
             return nil
         }
         SCContext.updateAvailableContent {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 closeAllWindow()
-                DispatchQueue.main.async {
-                    AppDelegate.shared.showAreaSelector(size: NSSize(width: 600, height: 450))
-                    var currentDisplay = SCContext.getSCDisplayWithMouse()
-                    mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .rightMouseDown, .leftMouseDown, .otherMouseDown]) { event in
-                        let display = SCContext.getSCDisplayWithMouse()
-                        if display != currentDisplay {
-                            currentDisplay = display
-                            closeAllWindow()
-                            AppDelegate.shared.showAreaSelector(size: NSSize(width: 600, height: 450))
-                        }
+                AppDelegate.shared.showAreaSelector(size: NSSize(width: 600, height: 450))
+                var currentDisplay = SCContext.getSCDisplayWithMouse()
+                mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .rightMouseDown, .leftMouseDown, .otherMouseDown]) { event in
+                    let display = SCContext.getSCDisplayWithMouse()
+                    if display != currentDisplay {
+                        currentDisplay = display
+                        closeAllWindow()
+                        AppDelegate.shared.showAreaSelector(size: NSSize(width: 600, height: 450))
                     }
                 }
             }
@@ -71,13 +74,16 @@ class selectArea: NSScriptCommand {
 class selectApps: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         if SCContext.stream != nil {
-            createAlert(title: "Error".local, message: "Already recording!".local, button1: "OK".local).runModal()
+            Task { @MainActor in
+                createAlert(title: "Error".local, message: "Already recording!".local, button1: "OK".local).runModal()
+            }
             return nil
         }
+        let requestedName = evaluatedArguments?["name"] as? String
         SCContext.updateAvailableContent {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 closeAllWindow()
-                if let name = self.evaluatedArguments!["name"] as? String {
+                if let name = requestedName {
                     guard let app = SCContext.availableContent?.applications.first(where: { $0.applicationName == name }) else {
                         createAlert(title: "Error".local, message: "No such application!".local, button1: "OK".local).runModal()
                         return
@@ -122,17 +128,21 @@ class selectApps: NSScriptCommand {
 class selectWindows: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         if SCContext.stream != nil {
-            createAlert(title: "Error".local, message: "Already recording!".local, button1: "OK".local).runModal()
+            Task { @MainActor in
+                createAlert(title: "Error".local, message: "Already recording!".local, button1: "OK".local).runModal()
+            }
             return nil
         }
+        let requestedTitle = evaluatedArguments?["title"] as? String
+        let requestedApp = evaluatedArguments?["app"] as? String
         SCContext.updateAvailableContent {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 closeAllWindow()
-                if let title = self.evaluatedArguments!["title"] as? String {
+                if let title = requestedTitle {
                     var windows = [SCWindow]()
                     guard let w = SCContext.availableContent?.windows.filter({ $0.title == title }) else { return }
                     windows = w
-                    if let app = self.evaluatedArguments!["app"] as? String {
+                    if let app = requestedApp {
                         guard let w = SCContext.availableContent?.windows.filter({ $0.title == title && $0.owningApplication?.applicationName == app }) else { return }
                         windows = w
                     }
@@ -180,13 +190,16 @@ class selectWindows: NSScriptCommand {
 class recordAudio: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         if SCContext.stream != nil {
-            createAlert(title: "Error".local, message: "Already recording!".local, button1: "OK".local).runModal()
+            Task { @MainActor in
+                createAlert(title: "Error".local, message: "Already recording!".local, button1: "OK".local).runModal()
+            }
             return nil
         }
+        let requestedMic = evaluatedArguments?["mic"] as? Bool
         SCContext.updateAvailableContent {
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 let m = UserDefaults.standard.bool(forKey: "recordMic")
-                if let mic = self.evaluatedArguments!["mic"] as? Bool {
+                if let mic = requestedMic {
                     UserDefaults.standard.set(mic, forKey: "recordMic")
                 }
                 closeAllWindow()

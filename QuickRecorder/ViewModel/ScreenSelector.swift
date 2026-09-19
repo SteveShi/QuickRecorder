@@ -161,65 +161,42 @@ struct ScreenSelector: View {
     }
 }
 
-class ScreenSelectorViewModel: NSObject, ObservableObject, SCStreamDelegate, SCStreamOutput {
+@MainActor
+class ScreenSelectorViewModel: ObservableObject {
     @Published var screenThumbnails = [ScreenThumbnail]()
-    private var allScreens = [SCDisplay]()
-    private var streams = [SCStream]()
     
-    override init() {
-        super.init()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.setupStreams()
-        }
-    }
-    
-    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        if CMSampleBufferGetImageBuffer(sampleBuffer) == nil { return }
-        var nsImage = sampleBuffer.nsImage
-        if let index = self.streams.firstIndex(of: stream), index + 1 <= self.allScreens.count {
-            if nsImage == nil { nsImage = SCContext.getWallpaper(self.allScreens[index]) ?? NSImage.unknowScreen }
-            let currentScreen = self.allScreens[index]
-            let thumbnail = ScreenThumbnail(image: nsImage!, screen: currentScreen)
-            DispatchQueue.main.async {
-                if !self.screenThumbnails.contains(where: { $0.screen == currentScreen }) { self.screenThumbnails.append(thumbnail) }
-            }
-            self.streams[index].stopCapture()
-        }
+    init() {
+        self.setupStreams()
     }
 
     func setupStreams() {
-        SCContext.updateAvailableContent {
-            Task {
-                do {
-                    self.streams.removeAll()
-                    DispatchQueue.main.async { self.screenThumbnails.removeAll() }
-                    guard let screens = SCContext.availableContent?.displays else { return }
-                    self.allScreens = screens
-                    let qrSelf = SCContext.getSelf()
-                    let contentFilters = self.allScreens.map { SCContentFilter(display: $0, excludingApplications: qrSelf != nil ? [qrSelf!] : [], exceptingWindows: []) }
-                    for (index, contentFilter) in contentFilters.enumerated() {
-                        let streamConfiguration = SCStreamConfiguration()
-                        streamConfiguration.width = Int(self.allScreens[index].frame.width)
-                        streamConfiguration.height = Int(self.allScreens[index].frame.height)
-                        streamConfiguration.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(1))
-                        streamConfiguration.pixelFormat = kCVPixelFormatType_32BGRA
-                        if #available(macOS 13, *) { streamConfiguration.capturesAudio = false }
-                        streamConfiguration.showsCursor = false
-                        streamConfiguration.queueDepth = 3
-                        let stream = SCStream(filter: contentFilter, configuration: streamConfiguration, delegate: self)
-                        try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: .main)
-                        try await stream.startCapture()
-                        self.streams.append(stream)
+        SCContext.updateAvailableContent { [weak self] in
+            Task { @MainActor in
+                guard let self = self else { return }
+                self.screenThumbnails.removeAll()
+                guard let screens = SCContext.availableContent?.displays else { return }
+                let qrSelf = SCContext.getSelf()
+
+                for screen in screens {
+                    let contentFilter = SCContentFilter(display: screen, excludingApplications: qrSelf != nil ? [qrSelf!] : [], exceptingWindows: [])
+                    let streamConfiguration = SCStreamConfiguration()
+                    streamConfiguration.width = Int(screen.frame.width)
+                    streamConfiguration.height = Int(screen.frame.height)
+                    streamConfiguration.showsCursor = false
+
+                    var finalImage: NSImage?
+                    if let cgImage = try? await SCScreenshotManager.captureImage(contentFilter: contentFilter, configuration: streamConfiguration) {
+                        finalImage = NSImage(cgImage: cgImage, size: NSSize(width: screen.frame.width, height: screen.frame.height))
                     }
-                } catch {
-                    print("Get screenshot error：\(error)")
+                    let image = finalImage ?? SCContext.getWallpaper(screen) ?? NSImage.unknowScreen
+                    self.screenThumbnails.append(ScreenThumbnail(image: image, screen: screen))
                 }
             }
         }
     }
 }
 
-class ScreenThumbnail {
+final class ScreenThumbnail: @unchecked Sendable {
     let image: NSImage
     let screen: SCDisplay
 
@@ -228,3 +205,4 @@ class ScreenThumbnail {
         self.screen = screen
     }
 }
+

@@ -1,0 +1,88 @@
+name: QuickRecorder
+
+options:
+  bundleIdPrefix: com.lihaoyun6
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    SDKROOT: macosx
+    SWIFT_VERSION: "6.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.0
+  MatrixColorSelector:
+    url: https://github.com/lihaoyun6/MatrixColorSelector.git
+    branch: main
+  AECAudioStream:
+    url: https://github.com/lihaoyun6/AECAudioStream.git
+    branch: main
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts.git
+    from: 2.2.4
+  SwiftLAME:
+    url: https://github.com/hidden-spectrum/SwiftLAME.git
+    revision: e8256a8151594f47f103c742f684253c6c44871d
+
+targets:
+  QuickRecorder:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: QuickRecorder
+        excludes:
+          - "Preview Content"
+      - path: QuickRecorder/Preview Content
+        buildPhase: none
+    dependencies:
+      - package: Sparkle
+      - package: MatrixColorSelector
+      - package: AECAudioStream
+      - package: KeyboardShortcuts
+      - package: SwiftLAME
+    settings:
+      base:
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        PRODUCT_BUNDLE_IDENTIFIER: com.lihaoyun6.QuickRecorder
+        MARKETING_VERSION: "1.6.9"
+        CURRENT_PROJECT_VERSION: 169
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: QuickRecorder/QuickRecorder.entitlements
+        INFOPLIST_FILE: QuickRecorder/Info.plist
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.utilities"
+        INFOPLIST_KEY_NSCameraUsageDescription: "QuickRecorder needs this permission to record your camera and mobile device."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "QuickRecorder needs this permission to record your voice."
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2024 lihaoyun6. All rights reserved."
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        COMBINE_HIDPI_IMAGES: YES
+        DEVELOPMENT_ASSET_PATHS: '"QuickRecorder/Preview Content"'
+        ENABLE_PREVIEWS: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+
+schemes:
+  QuickRecorder:
+    build:
+      targets:
+        QuickRecorder: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

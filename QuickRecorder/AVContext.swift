@@ -40,7 +40,7 @@ extension AppDelegate {
         }
     }
     
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+    nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         /* 保留后续以作他用
         if !SCContext.isPaused && ud.string(forKey: "recordCam") != "" {
             if sampleBuffer.isValid { SCContext.isCameraReady = true }
@@ -49,13 +49,14 @@ extension AppDelegate {
     }
 }
 
+@MainActor
 class AVOutputClass: NSObject, AVCaptureFileOutputRecordingDelegate, AVCaptureVideoDataOutputSampleBufferDelegate {
     static let shared = AVOutputClass()
     var output: AVCaptureMovieFileOutput!
     var dataOutput: AVCaptureVideoDataOutput!
     //var captureSession: AVCaptureSession!
     
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+    nonisolated func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         //print(sampleBuffer.nsImage?.size)
     }
     
@@ -112,7 +113,6 @@ class AVOutputClass: NSObject, AVCaptureFileOutputRecordingDelegate, AVCaptureVi
         SCContext.previewSession.startRunning()
         DispatchQueue.main.async {
             closeAllWindow(except: "Area Overlayer".local)
-            updateStatusBar()
             AppDelegate.shared.startDeviceOverlayer(size: NSSize(width: 300, height: 500))
         }
     }
@@ -125,9 +125,7 @@ class AVOutputClass: NSObject, AVCaptureFileOutputRecordingDelegate, AVCaptureVi
             SCContext.streamType = nil
             SCContext.startTime = nil
             DispatchQueue.main.async {
-                controlPanel.close()
                 deviceWindow.close()
-                updateStatusBar()
             }
         }
     }
@@ -140,7 +138,7 @@ class AVOutputClass: NSObject, AVCaptureFileOutputRecordingDelegate, AVCaptureVi
         }
     }
 
-    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+    nonisolated func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
         let content = UNMutableNotificationContent()
         content.title = "Recording Completed".local
         content.body = String(format: "File saved to: %@".local, outputFileURL.path)

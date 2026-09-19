@@ -137,7 +137,7 @@ struct WinSelector: View {
                 }
                 .frame(height: 445)
                 .padding(.horizontal, 10)
-                .onChange(of: selectedTab) { _ in selected.removeAll() }
+                .onChange(of: selectedTab) { _, _ in selected.removeAll() }
                 .onReceive(viewModel.$isReady) { isReady in
                     if isReady {
                         let allApps = viewModel.windowThumbnails.sorted(by: { $0.key.displayID < $1.key.displayID })
@@ -175,13 +175,13 @@ struct WinSelector: View {
                         VStack(alignment: .leading) {
                             Toggle(isOn: $disableFilter) { Text("Show Windows with No Title") }
                                 .toggleStyle(.checkbox)
-                                .onChange(of: disableFilter) { _ in
+                                .onChange(of: disableFilter) { _, _ in
                                     self.viewModel.setupStreams(filter: !disableFilter, capture: !donotCapture)
                                     self.selected.removeAll()
                                 }
                             Toggle(isOn: $donotCapture) { Text("Don't Create Thumbnails") }
                                 .toggleStyle(.checkbox)
-                                .onChange(of: donotCapture) { _ in
+                                .onChange(of: donotCapture) { _, _ in
                                     self.viewModel.setupStreams(filter: !disableFilter, capture: !donotCapture)
                                     self.selected.removeAll()
                                 }
@@ -254,103 +254,65 @@ struct WinSelector: View {
     }
 }
 
-class WindowSelectorViewModel: NSObject, ObservableObject, SCStreamDelegate, SCStreamOutput {
+@MainActor
+class WindowSelectorViewModel: ObservableObject {
     @Published var windowThumbnails = [SCDisplay:[WindowThumbnail]]()
     @Published var isReady = false
     private var allWindows = [SCWindow]()
-    private var streams = [SCStream]()
     
-    override init() {
-        super.init()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            self.setupStreams()
-        }
-    }
-    
-    func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        if CMSampleBufferGetImageBuffer(sampleBuffer) == nil { return }
-        let nsImage = sampleBuffer.nsImage ?? NSImage.unknowScreen
-        if let index = self.streams.firstIndex(of: stream), index + 1 <= self.allWindows.count {
-            let currentWindow = self.allWindows[index]
-            let thumbnail = WindowThumbnail(image: nsImage, window: currentWindow)
-            guard let displays = SCContext.availableContent?.displays.filter({ NSIntersectsRect(currentWindow.frame, $0.frame) }) else {
-                self.streams[index].stopCapture()
-                return
-            }
-            for d in displays {
-                DispatchQueue.main.async {
-                    if self.windowThumbnails[d] != nil {
-                        if !self.windowThumbnails[d]!.contains(where: { $0.window == currentWindow }) { self.windowThumbnails[d]!.append(thumbnail) }
-                    } else {
-                        self.windowThumbnails[d] = [thumbnail]
-                    }
-                }
-            }
-            DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { self.streams[index].stopCapture() }
-            if index + 1 == self.streams.count { DispatchQueue.main.async { self.isReady = true }}
-        }
+    init() {
+        self.setupStreams()
     }
 
     func setupStreams(filter: Bool = true, capture: Bool = true) {
-        SCContext.updateAvailableContent {
-            Task {
-                do {
-                    self.streams.removeAll()
-                    DispatchQueue.main.async { self.windowThumbnails.removeAll() }
-                    self.allWindows = SCContext.getWindows().filter({
-                        !($0.title == "" && $0.owningApplication?.bundleIdentifier == "com.apple.finder")
-                        && $0.owningApplication?.bundleIdentifier != Bundle.main.bundleIdentifier
-                        && $0.owningApplication?.applicationName != ""
-                    })
-                    if filter { self.allWindows = self.allWindows.filter({ $0.title != "" }) }
+        SCContext.updateAvailableContent { [weak self] in
+            Task { @MainActor in
+                guard let self = self else { return }
+                self.windowThumbnails.removeAll()
+                self.allWindows = SCContext.getWindows().filter({
+                    !($0.title == "" && $0.owningApplication?.bundleIdentifier == "com.apple.finder")
+                    && $0.owningApplication?.bundleIdentifier != Bundle.main.bundleIdentifier
+                    && $0.owningApplication?.applicationName != ""
+                })
+                if filter { self.allWindows = self.allWindows.filter({ $0.title != "" }) }
+                
+                for w in self.allWindows {
+                    var thumbnailImage = NSImage.unknowScreen
                     if capture {
-                        let contentFilters = self.allWindows.map { SCContentFilter(desktopIndependentWindow: $0) }
-                        for (index, contentFilter) in contentFilters.enumerated() {
-                            let streamConfiguration = SCStreamConfiguration()
-                            let width = self.allWindows[index].frame.width
-                            let height = self.allWindows[index].frame.height
-                            var factor = 0.5
-                            if width < 200 && height < 200 { factor = 1.0 }
-                            streamConfiguration.width = Int(width * factor)
-                            streamConfiguration.height = Int(height * factor)
-                            streamConfiguration.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(1))
-                            streamConfiguration.pixelFormat = kCVPixelFormatType_32BGRA
-                            if #available(macOS 13, *) { streamConfiguration.capturesAudio = false }
-                            streamConfiguration.showsCursor = false
-                            streamConfiguration.scalesToFit = true
-                            streamConfiguration.queueDepth = 3
-                            let stream = SCStream(filter: contentFilter, configuration: streamConfiguration, delegate: self)
-                            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: .main)
-                            try await stream.startCapture()
-                            self.streams.append(stream)
+                        let contentFilter = SCContentFilter(desktopIndependentWindow: w)
+                        let streamConfiguration = SCStreamConfiguration()
+                        let width = w.frame.width
+                        let height = w.frame.height
+                        var factor = 0.5
+                        if width < 200 && height < 200 { factor = 1.0 }
+                        streamConfiguration.width = Int(width * factor)
+                        streamConfiguration.height = Int(height * factor)
+                        streamConfiguration.showsCursor = false
+                        streamConfiguration.scalesToFit = true
+
+                        if let cgImage = try? await SCScreenshotManager.captureImage(contentFilter: contentFilter, configuration: streamConfiguration) {
+                            thumbnailImage = NSImage(cgImage: cgImage, size: NSSize(width: width * factor, height: height * factor))
                         }
-                    } else {
-                        for w in self.allWindows {
-                            let thumbnail = WindowThumbnail(image: NSImage.unknowScreen, window: w)
-                            guard let displays = SCContext.availableContent?.displays.filter({ NSIntersectsRect(w.frame, $0.frame) }) else { break }
-                            for d in displays {
-                                DispatchQueue.main.async {
-                                    if self.windowThumbnails[d] != nil {
-                                        if !self.windowThumbnails[d]!.contains(where: { $0.window == w }) {
-                                            self.windowThumbnails[d]!.append(thumbnail)
-                                        }
-                                    } else {
-                                        self.windowThumbnails[d] = [thumbnail]
-                                    }
-                                }
-                            }
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { self.isReady = true }
                     }
-                } catch {
-                    print("Get windowshot error：\(error)")
+                    let thumbnail = WindowThumbnail(image: thumbnailImage, window: w)
+                    guard let displays = SCContext.availableContent?.displays.filter({ NSIntersectsRect(w.frame, $0.frame) }) else { continue }
+                    for d in displays {
+                        if self.windowThumbnails[d] != nil {
+                            if !self.windowThumbnails[d]!.contains(where: { $0.window == w }) {
+                                self.windowThumbnails[d]!.append(thumbnail)
+                            }
+                        } else {
+                            self.windowThumbnails[d] = [thumbnail]
+                        }
+                    }
                 }
+                self.isReady = true
             }
         }
     }
 }
 
-class WindowThumbnail {
+final class WindowThumbnail: @unchecked Sendable {
     let image: NSImage
     let window: SCWindow
 

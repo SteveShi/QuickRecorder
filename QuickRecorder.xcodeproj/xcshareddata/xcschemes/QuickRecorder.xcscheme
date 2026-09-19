@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1600"
+   LastUpgradeVersion = "1430"
    version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
-      buildImplicitDependencies = "YES">
+      buildImplicitDependencies = "YES"
+      runPostActionsOnFailure = "NO">
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
@@ -14,7 +15,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "18D3BDE62BCE5DC1006CFFC0"
+               BlueprintIdentifier = "442A9613EC6AF7202353F5C8"
                BuildableName = "QuickRecorder.app"
                BlueprintName = "QuickRecorder"
                ReferencedContainer = "container:QuickRecorder.xcodeproj">
@@ -27,7 +28,18 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES"
-      shouldAutocreateTestPlan = "YES">
+      onlyGenerateCoverageForSpecifiedTargets = "NO">
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "442A9613EC6AF7202353F5C8"
+            BuildableName = "QuickRecorder.app"
+            BlueprintName = "QuickRecorder"
+            ReferencedContainer = "container:QuickRecorder.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
+      <Testables>
+      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -43,12 +55,14 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "18D3BDE62BCE5DC1006CFFC0"
+            BlueprintIdentifier = "442A9613EC6AF7202353F5C8"
             BuildableName = "QuickRecorder.app"
             BlueprintName = "QuickRecorder"
             ReferencedContainer = "container:QuickRecorder.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
@@ -60,12 +74,14 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "18D3BDE62BCE5DC1006CFFC0"
+            BlueprintIdentifier = "442A9613EC6AF7202353F5C8"
             BuildableName = "QuickRecorder.app"
             BlueprintName = "QuickRecorder"
             ReferencedContainer = "container:QuickRecorder.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">

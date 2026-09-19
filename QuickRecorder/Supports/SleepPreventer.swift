@@ -8,6 +8,7 @@
 import Foundation
 import IOKit.pwr_mgt
 
+@MainActor
 class SleepPreventer {
     static let shared = SleepPreventer()
     private var assertionID: IOPMAssertionID = 0
